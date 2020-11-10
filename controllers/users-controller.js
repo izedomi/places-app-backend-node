@@ -2,68 +2,61 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const {validationResult} = require('express-validator');
+const {User} = require('../schema/user-schema');
 
 let error;
 
-let DUMMY_USERS = [
 
-    {
-        'id': 'u1',
-        'name': "izedomi emmanuel",
-        'email': "izedomi@gmail.com",
-        'password': "izedomi"
-    },
-    {
-        'id': 'u2',
-        'name': "Salmi Kalux",
-        'email': "kalux@gmail.com",
-        'password': "salmi"
-    },
-    {
-        'id': 'u3',
-        'name': "Vicky Golden",
-        'email': "vg@gmail.com",
-        'password': 'vicky'
+exports.GetAllUsers = async(req, res) => {
+
+  
+    try{
+        const users = await User.find({}, "-password");
+        res.status(200).json({users: users});
     }
-];
-
-
-exports.GetAllUsers = (req, res) => {
-
-    return res.status(200).json(DUMMY_USERS);
+    catch(e){
+        console.log(e);
+        res.status(500).json({message: "An error occured!"})
+    }
 }
 
 
-exports.UserSignup = (req, res) => {
+exports.UserSignup = async (req, res) => {
     
     error = validationResult(req);
     if(!error.isEmpty())
         return res.status(422).json(error.array());
 
-
     let {name, email, password} = req.body;
 
-    let hasUser = DUMMY_USERS.find((user) => {
-        return email === user.email;
-    });
+    try{
 
-    if(hasUser)
-        return res.status(422).json({message: "Unable to create user. Email already exists."});
+        let userExists = await User.findOne({email: email});
+        if(userExists) 
+            return res.status(422).json({message: "User already exists. Please login"});
+        
+        const newUser = new User({
+            name,
+            email,
+            password,
+            image: 'https://images.pexels.com/photos/744480/pexels-photo-744480.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260',
+            places: []
+        });
 
-    let newUser = {
-        id: uuidv4(),
-        name,
-        email,
-        password
+        const result = await newUser.save();
+        
+        res.status(200).json({message: result});
+
     }
-
-    DUMMY_USERS.push(newUser);
-
-    return res.json(newUser);
+    catch(e){
+        console.log(e);
+        return res.status(500).json({message: "Encountered an error"});
+    }
+   
 
 };
 
-exports.UserLogin = (req, res) => {
+exports.UserLogin = async(req, res) => {
 
     error = validationResult(req);
     if(!error.isEmpty())
@@ -71,17 +64,20 @@ exports.UserLogin = (req, res) => {
 
     let {email, password} = req.body;
 
-    let user = DUMMY_USERS.find((user) => {
-        return email === user.email;
-    });
+    try{
 
-    if(!user)
-        return res.status(404).json({message: "This user was not found. Verify email and try again."});
+        let userExists = await User.findOne({email: email});
 
-    if(user.password !== password)
-        return res.status(404).json({message: "Invalid password"});
+        if(!userExists || userExists.password != password) 
+            return res.status(422).json({message: "Invalid credentials entered"});
 
-    
-    return res.status(200).json({status: 200, message: "Logged in successfully"});
+        res.status(200).json({message: "User logged in successfully"});
+
+    }
+    catch(e){
+
+        console.log(e);
+        res.status(500).json({message: "Sorry. Server error was encountered"});
+    }
 
 }

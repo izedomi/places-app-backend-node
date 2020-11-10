@@ -19,7 +19,7 @@ app.use(bodyParser.json());
 app.use('/api/places', PlacesRoutes);
 app.use('/api/users', UsersRoutes);
 
-//applied unsupported routes
+//applied to unsupported routes
 app.use((req, res) => {
     return res.status(404).json({message: 'Resource not found'});
 });

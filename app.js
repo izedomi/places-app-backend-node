@@ -2,10 +2,14 @@
 const app = require('express')();
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const Fawn = require('fawn');
 
-mongoose.connect("mongodb://localhost/places-app", {useNewUrlParser: true, useUnifiedTopology: true},).
+mongoose.connect("mongodb://localhost/places-app", 
+{useNewUrlParser: true, useUnifiedTopology: true, retryWrites:false}).
 then(() => console.log("connected to database sucessfully"))
 .catch(() => console.log("error connecting to database"));
+
+Fawn.init(mongoose);
 
 
 const {PlacesRoutes} = require('./routes/places-routes');

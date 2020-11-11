@@ -1,8 +1,12 @@
 const { v4: uuidv4 } = require('uuid');
+const mongoose = require('mongoose');
 const {validationResult} = require('express-validator');
+const Fawn = require('fawn');
 
 const {getAddressCordinates} = require('../utils/location');
 const {Place} = require('../schema/place-schema');
+const {User} = require('../schema/user-schema');
+
 
 let error;
 
@@ -71,40 +75,72 @@ exports.createNewPlace = async (req, res) => {
         }) 
     }
 
-    const API_KEY = process.env.API_KEY;
-
-    //validate input
-    error = validationResult(req);
-    if(!error.isEmpty())
-        return res.status(422).json(error.array());
-
-    //get request body
-    let {title, description, creator, address} = req.body;
-    
-    //get coordinates from user address
-    let location = await getAddressCordinates(address, API_KEY);
-    console.log(location);
-
-    //couldn't determine coordinates
-    if(!location.status)
-        return res.status(422).json({message: location.data});
-
-    let cordinates = location.data;
-
-    //create place and save new place 
-    const newPlace = new Place({
-        title,
-        description,
-        address,
-        location: cordinates,
-        image: 'xxxxxxxxxxx.jpg',
-        creator
-    })
 
     try{
-        await newPlace.save();
+        
+        const API_KEY = process.env.API_KEY;
+
+        //validate input
+        error = validationResult(req);
+        if(!error.isEmpty())
+            return res.status(422).json(error.array());
+    
+        //get request body
+        let {title, description, creator_id, address} = req.body;
+    
+        const user = await User.findById(creator_id);
+        if(!user)
+           res.status(404).json({message: "User not found"});
+    
+        //get coordinates from user address
+        let location = await getAddressCordinates(address, API_KEY);
+        console.log(location);
+    
+        //couldn't determine coordinates
+        if(!location.status)
+            return res.status(422).json({message: location.data});
+    
+        let cordinates = location.data;
+    
+        //create place and save new place 
+        const newPlace = new Place({
+            title,
+            description,
+            address,
+            location: cordinates,
+            image: 'xxxxxxxxxxx.jpg',
+            creator_id
+        });
+        
+        /*
+            //Transactions are used to ensure both operations are completed
+            //successfully before they are save to the database
+
+            //create a session
+            //start a transaction
+            //save
+            //commit the transaction
+
+            const sess = await mongoose.startSession();
+            sess.startTransaction();
+            await newPlace.save({session: sess});
+            user.places.push(newPlace);
+            await user.save({session: sess})
+            sess.commitTransaction();
+        */
+
+     
+        //return res.status(200).send(newPlace.id);
+        
+        const result = await newPlace.save();
+        user.places.push(result.id);
+        const updateUser = await user.save();
+
+        return res.status(200).json({newPlace: result, user: updateUser});
+
     }
     catch(e){
+        console.log(e);
         return res.status(500).json({message: "Creating new place failed"});
     }
     
@@ -150,15 +186,27 @@ exports.deleteAPlace = async (req, res) => {
     let placeId = req.params.pid;
     
     //place id is not null
-    if(!placeId) return res.status(400).json({message: 'Bad request. Please try again'});
+    if(!placeId) 
+        return res.status(400).json({message: 'Bad request. Please try again'});
 
     try{
 
         let place = await Place.findByIdAndDelete(placeId);
+       // let place = await Place.findById(placeId);
 
-        if(!place) res.status(404).json({message: "No place with given ID was found"});
-        
-        return res.status(200).json(place);
+        if(!place) 
+            res.status(404).json({message: "No place with given ID was found"});
+
+        //get user that created place
+        let placeCreator = await User.findById(place.creator_id);
+
+        //delete place from user places arrays
+        let index = placeCreator.places.indexOf(placeId);
+        placeCreator.places.splice(index, 1);
+        await placeCreator.save();
+
+        //console.log(placeCreator);
+        return res.status(200).json({message: placeCreator});
     }
     catch(e){
         console.log(e);

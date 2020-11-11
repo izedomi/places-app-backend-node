@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { v4: uuidv4 } = require('uuid');
 const {validationResult} = require('express-validator');
 const {User} = require('../schema/user-schema');
 
@@ -22,12 +21,14 @@ exports.GetAllUsers = async(req, res) => {
 
 
 exports.UserSignup = async (req, res) => {
+
     
     error = validationResult(req);
     if(!error.isEmpty())
         return res.status(422).json(error.array());
 
     let {name, email, password} = req.body;
+
 
     try{
 
@@ -39,7 +40,7 @@ exports.UserSignup = async (req, res) => {
             name,
             email,
             password,
-            image: 'https://images.pexels.com/photos/744480/pexels-photo-744480.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260',
+            image: "https://images.pexels.com/photos/744480/pexels-photo-744480.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=750&w=1260",
             places: []
         });
 
@@ -52,9 +53,11 @@ exports.UserSignup = async (req, res) => {
         console.log(e);
         return res.status(500).json({message: "Encountered an error"});
     }
+
+    
    
 
-};
+}
 
 exports.UserLogin = async(req, res) => {
 

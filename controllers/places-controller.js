@@ -87,9 +87,9 @@ exports.createNewPlace = async (req, res) => {
             return res.status(422).json(error.array());
 
         //get request body
-        let {title, description, creator_id, address} = req.body;
+        let {title, description, address} = req.body;
 
-        const user = await User.findById(creator_id);
+        const user = await User.findById(req.userData.userId);
         if(!user)
            res.status(404).json({message: "User not found"});
 
@@ -110,8 +110,13 @@ exports.createNewPlace = async (req, res) => {
             address,
             location: cordinates,
             image: req.file.path,
-            creator_id
+            creator_id: req.userData.userId,
         });
+
+        console.log(newPlace);
+
+
+
 
         /*
             //Transactions are used to ensure both operations are completed
@@ -128,16 +133,25 @@ exports.createNewPlace = async (req, res) => {
             user.places.push(newPlace);
             await user.save({session: sess})
             sess.commitTransaction();
+
+
+                    const result = await newPlace.save();
+                    user.places.push(result.id);
+                    const updateUser = await user.save();
+
+
         */
 
 
         //return res.status(200).send(newPlace.id);
+        user.places.push(newPlace._id);
 
-        const result = await newPlace.save();
-        user.places.push(result.id);
-        const updateUser = await user.save();
+        var task = Fawn.Task()
+        task.save("places", newPlace);
+        task.update("users", {_id: user._id}, {places: user.places})
+        task.run()
 
-        return res.status(200).json({newPlace: result, user: updateUser});
+        return res.status(200).json({newPlace: newPlace, user: user});
 
     }
     catch(e){
@@ -150,6 +164,9 @@ exports.createNewPlace = async (req, res) => {
 
 exports.updateAPlace = async (req, res) => {
 
+
+
+
     //validate inputs
     error = validationResult(req);
     if(!error.isEmpty())
@@ -160,10 +177,16 @@ exports.updateAPlace = async (req, res) => {
     if(!placeId) return res.status(400).json({message: 'Bad request. Please try again'});
 
 
+
+
     try{
         //find place with id
         let place = await Place.findById(placeId)
         if(!place) return res.status(422).json({message: 'No place was found for the given id'})
+
+        const loggedInUserId = req.userData.userId;
+        if(loggedInUserId.toString() !== place.creator_id.toString())
+            return res.status(401).json({message: 'Unauthorized action...'})
 
         let {title, description} = req.body;
 
@@ -186,27 +209,38 @@ exports.deleteAPlace = async (req, res) => {
     //get place id
     let placeId = req.params.pid;
 
+
     //place id is not null
     if(!placeId)
         return res.status(400).json({message: 'Bad request. Please try again'});
 
     try{
 
-        let place = await Place.findByIdAndDelete(placeId);
-       // let place = await Place.findById(placeId);
-
-
+        //let place = await Place.find(placeId);
+       let place = await Place.findById(placeId);
 
         if(!place)
             res.status(404).json({message: "No place with given ID was found"});
 
+        const loggedInUserId = req.userData.userId;
+        if(loggedInUserId.toString() !== place.creator_id.toString())
+            return res.status(401).json({message: 'Unauthorized action...'})
+
         //get user that created place
-        let placeCreator = await User.findById(place.creator_id);
+        let placeCreator = await User.findById(req.userData.userId);
 
         //delete place from user places arrays
         let index = placeCreator.places.indexOf(placeId);
         placeCreator.places.splice(index, 1);
-        await placeCreator.save();
+      //await placeCreator.save();
+       console.log(placeCreator.places)
+
+
+
+        var task = Fawn.Task()
+        task.remove("places", {_id: place._id});
+        task.update("users", {_id: place.creator_id}, {places: placeCreator.places})
+        task.run()
 
         fs.unlink(place.image, (err) => {
           console.log(err)

@@ -98,14 +98,20 @@ exports.UserLogin = async(req, res) => {
         let userExists = await User.findOne({email: email});
         console.log(userExists);
         console.log(password)
+        if(!userExists){
+          return res.status(422).json({message: "User account not found"});
+        }
 
-        const isValidPassword = await bcrypt.compare(password, userExists.password);
 
-        if(!userExists || !isValidPassword)
-            return res.status(422).json({message: "Invalid credentials entered"});
+        let isValidPassword = false;
+        isValidPassword = await bcrypt.compare(password, userExists.password);
+
+        if(!isValidPassword){
+          return res.status(422).json({message: "Invalid credentials entered"});
+        }
+
 
         //return res.status(200).send(userExists);
-
 
         const token = jwt.sign({userId: userExists._id, userEmail: userExists.email},'jwt_places_app',{expiresIn: '1h'})
 
